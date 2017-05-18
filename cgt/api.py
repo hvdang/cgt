@@ -3,9 +3,10 @@ import operator
 import numpy as np
 import sys
 if sys.argv[0] != "gen_py.py":
-    from api_autogen import *
+    from .api_autogen import *
 import cgt
 from . import core, utils
+from functools import reduce
 # Every non-underscored function in this file should have a docstring, and it should enforce that the input data is valid
 
 # ================================================================
@@ -590,7 +591,7 @@ def shape(x):
     """
     x = core.as_node(x)
     if isinstance(x.typ, core.TensorType):
-        return [size(x, i) for i in xrange(x.ndim)]
+        return [size(x, i) for i in range(x.ndim)]
     else:
         return tuple(map(shape, x.parents))
 
@@ -634,7 +635,7 @@ def sub2ind(subs, shp):
     ndim = len(shp)
     assert ndim >= 1
     strides = [None]*(ndim-1) + [1]
-    for i in xrange(ndim-2, -1, -1):
+    for i in range(ndim-2, -1, -1):
         strides[i] = shp[i+1] * strides[i+1]
     return add_multi([stride*sub for (stride,sub) in utils.safezip(strides, subs)])
 
@@ -726,7 +727,7 @@ def zeros_like(x):
     return zeros(shape(x), x.dtype)
 
 def _dropdims(x, axes):
-    return reshape(x, [size(x, i) for i in xrange(x.ndim) if (i not in axes)])
+    return reshape(x, [size(x, i) for i in range(x.ndim) if (i not in axes)])
 
 def _is_list_or_tuple(xs):
     return isinstance(xs, (list, tuple))

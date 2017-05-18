@@ -1,9 +1,11 @@
-import sys, numpy as np, hashlib, copy, cPickle, ctypes, os, os.path as osp
+import sys, numpy as np, hashlib, copy, pickle, ctypes, os, os.path as osp
 from collections import defaultdict,namedtuple
-import __builtin__
+# import __builtin__
+import builtins
 import traceback
 import cgt
 from . import utils
+from functools import reduce
 
 # ================================================================
 # Datatypes
@@ -129,7 +131,7 @@ def _promote(typ1, typ2):
         return cgt.floatX
     elif d1 == 'i' and d2 == 'i':
         assert d1 == d2
-        return d1 + __builtin__.max(s1,s2)
+        return d1 + builtins.max(s1,s2)
     else:
         raise ValueError("Don't know what to do with dtypes %s,%s"%(typ1, typ2))
 
@@ -201,33 +203,40 @@ class Node(object):
         Returns whether Node is an argument
         """
         return self.op is None
+
     def is_data(self):
         """
         Returns whether Node's Op is data
         """
         return self.op is not None and self.op.is_data_op
+
     def is_input(self):
         """
         Returns whether this node is either an argument or is data
         """
         return self.is_argument() or self.is_data()
+
     def get_diff(self):
         """
         Returns a sequence of bool indicating whether output is differentiable wrt each input
         """
         return [] if self.op is None else self.op.get_diff(len(self.parents))
+
     def is_tensor(self):
         """
         Returns whether this node's type (self.typ) is TensorType
         """
         return isinstance(self.typ, TensorType)
+
     def is_tuple(self):
         """
         Returns whether this node's type (self.typ) is TupleType
         """
         return isinstance(self.typ, TupleType)
+
     def is_scalar(self):
         return self.is_tensor() and self.ndim==0
+
     def get_hash(self, node2hash):
         """
         Return UNIQUE string identifying this Node
@@ -239,6 +248,7 @@ class Node(object):
             for p in self.parents: 
                 hashobj.update(node2hash[p])
             return hashobj.hexdigest()
+
     def clone(self, newparents):
         """
         Create a new Node that applies self.op to `newparents`
@@ -246,6 +256,7 @@ class Node(object):
         """
         if self.is_input(): return self
         else: return Node(self.typ, self.op, newparents, props = self.props)
+
     def get_fixed_shape(self):
         """
         Returns a tuple of int or None. You'll get ints if this is an argument or data node
@@ -409,28 +420,33 @@ class Op(object):
         Return output shapes as a function of input nodes
         """
         raise NotImplementedError
+
     def typ_apply(self, parent_types):
         """
         Return output types as a function of input types
         """
         raise NotImplementedError        
+
     def get_diff(self, num_inputs):
         """
         Return a list of length len(inputs), specifying which inputs the Op is differentiable with respect to.
         """
         assert isinstance(num_inputs, int)
         return [True]*num_inputs
+
     def get_expr(self, parent_exprs):
         """
         Return string expression for this operation, built from the parent expressions
         """
         return "%s(%s)"%(str(self), ",".join(parent_exprs))
+
     def get_hash(self):
         """
         Return a string that uniquely identifies the value of this Op.
         Should ideally be fixed across program runs
         """
-        return cPickle.dumps(self.__dict__, -1)+self.__class__.__name__
+        return self.__class__.__name__ + str(pickle.dumps(self.__dict__, -1))
+
     def get_name(self):
         """
         Get a human-readable description of the Op, including its attributes
@@ -442,6 +458,7 @@ class Op(object):
         Return the name of this node
         """
         return None
+
     def pullback(self, inputs, output, goutput): #pylint: disable=W0613
         """
         Compute symbolic expressions for derivatives obtained by backpropagation on this Op
@@ -449,6 +466,7 @@ class Op(object):
         pullback(...) computes gradx_k = J_k^T grady
         """
         raise MethodNotDefined
+
     def pushforward(self, inputs, output, goutput):
         r"""
         Compute symbolic expressions for derivatives obtained by "tangent propagation" on this Op
@@ -456,6 +474,7 @@ class Op(object):
         pullback([x_1, ..., x_k], y, grady) := \sum_k J_k gradx_k
         """
         raise MethodNotDefined
+
     def spliting(self, inputs):
         """
         Return a list [tensor_type_sig, split_specs]
@@ -469,19 +488,23 @@ class Op(object):
 
         """
         raise MethodNotDefined
+
     def get_native_compile_info(self, inputs, devtype):
         """
         returns NativeCompileInfo 
         """
         raise MethodNotDefined
+
     def get_py_func(self, input_types):
         """
         Returns python function that implements this operation
         """
         raise MethodNotDefined
+
     def get_py_callable(self, input_types):
         func = self.get_py_func(input_types)
         return PyCallable(self, len(input_types), func)
+
     def __repr__(self):
         """
         Get a human-readable description of the Op, including its attributes
@@ -909,7 +932,7 @@ class ConstantTensor(Constant):
         assert len(input_types)==0
         return _ndarray_type(self.value)
     def get_hash(self):
-        if self._hash is None: self._hash = cPickle.dumps(self.value, -1)
+        if self._hash is None: self._hash = str(pickle.dumps(self.value, -1))
         return self._hash
     def get_closure(self):
         assert isinstance(self.value, np.ndarray)
@@ -1173,8 +1196,8 @@ class ElwiseUnary(Op):
         return utils.hash_seq1(self.opname)
     def get_replacement(self, _newparents, _analysis):
         return None
-    def pullback(self, (x,), y, gy): #pylint: disable=W0613
-        return [self.info.gradexpr(x, y, gy)]
+    def pullback(self, x, y, gy): #pylint: disable=W0613 #todo did remove tuple unpacking (x,) ->x'
+        return [self.info.gradexpr(x[0], y, gy)]
     def shp_apply(self, inputs):
         return cgt.shape(inputs[0])
     def typ_apply(self, input_types):

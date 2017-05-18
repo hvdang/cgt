@@ -1,8 +1,13 @@
 from . import core, utils
 import cgt
-import ctypes, os.path as osp, hashlib, numpy as np, sys, subprocess, string, os, time, traceback, cPickle
+import ctypes, os.path as osp, hashlib, numpy as np, sys, subprocess, string, os, time, traceback, pickle
 from collections import defaultdict, namedtuple
-from StringIO import StringIO
+
+try: # fix import StringIO for python3.6
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
+
 import logging
 
 def function(inputs, outputs, dbg=None, updates=None, givens=None):
@@ -267,7 +272,7 @@ def get_callable(op, input_types, devtype, prefer_python=False):
             if "native_cpu" in op.available_impls:
                 return get_native_callable(op, input_types, "cpu")
             else:
-                print "using python impl for",op
+                print("using python impl for", op)
                 return op.get_py_callable(input_types)
         else:
             if "native_gpu" in op.available_impls:
@@ -355,9 +360,9 @@ def run_compilation_pipeline(inputs, outputs, updates, givens):
 
     # print execution graph
     if config["verbose"]:
-        print 'begin'
-        print '\n'.join(str(i)+'.) \t'+repr(instr) for (i,instr) in enumerate(eg.instrs))
-        print 'end'
+        print('begin')
+        print('\n'.join(str(i)+'.) \t'+repr(instr) for (i,instr) in enumerate(eg.instrs)))
+        print('end')
 
     # Phase 3: create C or Python interpreter for graph
     # ------------------------------------------------------
@@ -635,7 +640,7 @@ def get_compile_info():
         with open(osp.join(CGT_BUILD_ROOT,"build_info.txt")) as fh:
             lines = fh.readlines()
         for line in lines:
-            if ":=" not in line: print "skipping",line
+            if ":=" not in line: print("skipping",line)
             lhs,rhs = line.split(":=")
             lhs = lhs.strip()
             rhs = rhs.strip()
@@ -713,7 +718,7 @@ def _make_link_cmd(objs, extra_link_flags, libpath):
         link_flags=d["LINK_FLAGS"]+" "+extra_link_flags, cacheroot=d["CACHE_ROOT"], iname=iname)
 
 def call_and_print(cmd):
-    print "\x1b[32m%s\x1b[0m"%cmd
+    print("\x1b[32m%s\x1b[0m"%cmd)
     subprocess.check_call(cmd,shell=True)
 
 _ctypes2str = {
@@ -739,7 +744,7 @@ def _build_closure(triples):
         vals.append(val)
         fields.append((fieldname,fieldtype))
     try:
-        key = cPickle.dumps(fields)
+        key = pickle.dumps(fields)
         S = _struct_cache[key]
     except KeyError:
         class S(ctypes.Structure):
@@ -772,7 +777,7 @@ class SequentialInterpreter(Interpreter):
         self.eg = eg
         self.input_types = input_types
         self.output_locs = output_locs
-        self.storage = [None for _ in xrange(self.eg.n_locs)]
+        self.storage = [None for _ in range(self.eg.n_locs)]
         self.args = None
         self.copy_outputs = copy_outputs
     def __call__(self, *args):
@@ -846,7 +851,7 @@ class _Profiler(object):
             (prevcount, prevtime) = op2stats.get(opkey, (0, 0.0))
             op2stats[opkey] = (prevcount+count, prevtime+t)
 
-        print "Total time elapsed: %.3g seconds"%self.t_total
+        print("Total time elapsed: %.3g seconds"%self.t_total)
         # _print_heading("By instruction")
         # _print_stats(self.instr2stats, self.t_total)
         _print_heading("By Op")
@@ -861,12 +866,11 @@ def _print_heading(heading):
     heading = "  " + heading + "  "
     width = 60
     assert len(heading) < width-10
-    print
-    print "*"*width
+    print ("*"*width)
     padleft = (width-len(heading))//2
     padright = width-len(heading)-padleft
-    print "*"*padleft + heading + "*"*padright
-    print "*"*width
+    print ("*"*padleft + heading + "*"*padright)
+    print ("*"*width)
 
 def _print_stats(key2stats, t_total):
     rows = []
@@ -878,7 +882,7 @@ def _print_stats(key2stats, t_total):
         cumsum += row[3]
         row.append(cumsum)
     from thirdparty.tabulate import tabulate
-    print tabulate(rows, headers=["Instruction","Count","Time","Frac","Frac cumsum"])
+    print(tabulate(rows, headers=["Instruction","Count","Time","Frac","Frac cumsum"]))
 
 def _copy(x):
     if isinstance(x, np.ndarray): return x.copy()
